@@ -55,7 +55,7 @@ from time import time, strftime, gmtime
 from math import floor
 
 # Local dependencies
-from logster.logster_helper import LogsterParsingException, LockingError, CloudWatch, CloudWatchException
+from logster.logster_helper import LogsterParsingException, LockingError, CloudWatch, CloudWatchException, TempoClient, TempoDBException
 
 # Globals
 gmetric = "/usr/bin/gmetric"
@@ -97,11 +97,15 @@ cmdline.add_option('--nsca-host', action='store',
 cmdline.add_option('--nsca-service-hostname', action='store',
                     help='<host_name> value to use in nsca passive service check. Default is \"%default\"',
                     default=socket.gethostname())
+cmdline.add_option('--tempodb-api-key', action='store', default=os.getenv('TEMPODB_API_KEY'),
+                    help='TempoDB credential API key')
+cmdline.add_option('--tempodb-api-secret', action='store', default=os.getenv('TEMPODB_API_SECRET'),
+                    help='TempoDB credential secret API key')
 cmdline.add_option('--state-dir', '-s', action='store', default=state_dir,
                     help='Where to store the logtail state file.  Default location %s' % state_dir)
 cmdline.add_option('--output', '-o', action='append',
-                   choices=('graphite', 'ganglia', 'stdout', 'cloudwatch', 'nsca', 'statsd'),
-                   help="Where to send metrics (can specify multiple times). Choices are 'graphite', 'ganglia', 'cloudwatch', 'nsca' , 'statsd', or 'stdout'.")
+                   choices=('graphite', 'ganglia', 'stdout', 'cloudwatch', 'nsca', 'statsd', 'tempodb'),
+                   help="Where to send metrics (can specify multiple times). Choices are 'graphite', 'ganglia', 'cloudwatch', 'nsca' , 'statsd', 'tempodb', or 'stdout'.")
 cmdline.add_option('--stdout-separator', action='store', default="_", dest="stdout_separator",
                     help='Seperator between prefix/suffix and name for stdout. Default is \"%default\".')
 cmdline.add_option('--dry-run', '-d', action='store_true', default=False,
@@ -128,6 +132,12 @@ if 'cloudwatch' in options.output and not options.aws_key and not options.aws_se
 if 'nsca' in options.output and not options.nsca_host:
     cmdline.print_help()
     cmdline.error("You must supply --nsca-host when using 'nsca' as an output type.")
+if 'tempodb' in options.output and not options.tempodb_api_secret:
+    cmdline.print_help()
+    cmdline.error("You must supply --tempodb-api-secret when using 'tempodb' as an output type.")
+if 'tempodb' in options.output and not options.tempodb_api_key:
+    cmdline.print_help()
+    cmdline.error("You must supply --tempodb-api-key when using 'tempodb' as an output type.")
 
 class_name = arguments[0]
 if class_name.find('.') == -1:
@@ -178,6 +188,8 @@ def submit_stats(parser, duration, options):
         submit_nsca(metrics, options)
     if 'statsd' in options.output:
         submit_statsd(metrics, options)
+    if 'tempodb' in options.output:
+        submit_tempodb(metrics, options)
 
 
 def submit_stdout(metrics, options):
@@ -261,6 +273,27 @@ def submit_cloudwatch(metrics, options):
                 sys.exit(1)
         else:       
             print metric_string
+
+
+def submit_tempodb(metrics, options):
+    """Submit to tempo-db.com
+    """
+    if options.dry_run:
+        for metric in metrics:
+            print "%s %s %s" % (metric.name, metric.value, metric.timestamp)
+        return
+
+    try:
+        for name in ["num_requests", "status_5xx", "time_95", "max_time", "status_success", "time_median", "time_mean", "time_90"]:
+            tdb = TempoClient(api_key=options.tempodb_api_key, api_secret=options.tempodb_api_secret, name=name)
+            for metric in metrics:
+                if metric.name == name:
+                    tdb.add_metric(metric.timestamp, metric.value)
+            tdb.put_data()
+
+    except TempoDBException, e:
+        logger.debug(e.message)
+        sys.exit(1)
 
 
 def submit_nsca(metrics, options):

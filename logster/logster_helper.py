@@ -148,3 +148,33 @@ class CloudWatch:
         res = conn.getresponse()
 
 
+class TempoDBException(Exception):
+    """ Raise thie exception if something goes wrong when working with TempoDB
+    """
+    pass
+
+class TempoClient:
+    """ A client to tempo-db.com """
+    # Mainly a wrapper to the one provided by tempodb
+
+    def __init__(self, api_key=None, api_secret=None, name=None):
+        try:
+            from tempodb import Client, DataPoint
+        except ImportError:
+            raise TempoDBException("TempoDB module can't be found.")
+
+        self.Client = Client
+        self.DataPoint = DataPoint
+        self.api_key = api_key
+        self.api_secret = api_secret
+        self.name = name
+        self.metrics = []
+
+    def add_metric(self, timestamp, value):
+      
+        self.metrics.append(self.DataPoint(timestamp, value))
+
+    def put_data(self):
+    
+        client = self.Client(self.api_key, self.api_secret)
+        client.write_key(self.name, self.metrics)

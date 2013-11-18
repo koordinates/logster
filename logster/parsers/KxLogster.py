@@ -112,6 +112,7 @@ class KxLogster(LogsterParser):
 
                 if not when in self.state:
                     self.state[when] = {}
+                    self.state[when]['rawwhen'] = rawwhen
                 if not "num_requests" in self.state[when]:
                     self.state[when]['num_requests'] = 0
                 if not "status_5xx" in self.state[when]:
@@ -147,13 +148,13 @@ class KxLogster(LogsterParser):
         # Return a list of metrics objects
         res = []
         for when,v in self.state.iteritems():
-            res.append( MetricObject(timestamp = when, name = "status_5xx", units=" requests", value=v['status_5xx']))
-            res.append( MetricObject(timestamp = when, name = "num_requests", units=" requests", value=v['num_requests']))
-            res.append( MetricObject(timestamp = when, name = "status_success", units=" requests", value=v['status_success']))
-            res.append( MetricObject(timestamp = when, name = "max_time", units=" sec", value=v['max_time']))
-            res.append( MetricObject(timestamp = when, name = "time_median", units=" sec", value=stats_helper.find_median(v['time_list'])))
-            res.append( MetricObject(timestamp = when, name = "time_mean", units=" sec", value=stats_helper.find_mean(v['time_list'])))
-            res.append( MetricObject(timestamp = when, name = "time_95%", units=" sec", value=stats_helper.find_percentile(v['time_list'], 95)))
-            res.append( MetricObject(timestamp = when, name = "time_90%", units=" sec", value=stats_helper.find_percentile(v['time_list'], 90)))
+            res.append( MetricObject(timestamp = v['rawwhen'], name = "status_5xx", units=" requests", value=v['status_5xx']))
+            res.append( MetricObject(timestamp = v['rawwhen'], name = "num_requests", units=" requests", value=v['num_requests']))
+            res.append( MetricObject(timestamp = v['rawwhen'], name = "status_success", units=" requests", value=v['status_success']))
+            res.append( MetricObject(timestamp = v['rawwhen'], name = "max_time", units=" sec", value=v['max_time']))
+            res.append( MetricObject(timestamp = v['rawwhen'], name = "time_median", units=" sec", value=stats_helper.find_median(v['time_list'])))
+            res.append( MetricObject(timestamp = v['rawwhen'], name = "time_mean", units=" sec", value=stats_helper.find_mean(v['time_list'])))
+            res.append( MetricObject(timestamp = v['rawwhen'], name = "time_95", units=" sec", value=stats_helper.find_percentile(v['time_list'], 95)))
+            res.append( MetricObject(timestamp = v['rawwhen'], name = "time_90", units=" sec", value=stats_helper.find_percentile(v['time_list'], 90)))
 
         return res
