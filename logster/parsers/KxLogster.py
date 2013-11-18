@@ -4,14 +4,12 @@
 ###
 ###   IP  user user [timestamp] "request" status size "referer" "useragent" host backend:port requesttime - - -
 ###
-###   5.10.83.100 - - [18/Nov/2013:06:26:28 +1300] "GET /layer/183-nz-mainland-river-polygons-topo-1250k/data/ HTTP/1.1" 200 3599 "-" "Mozilla/5.0 (compatible; AhrefsBot/5.0; +http://ahrefs.com/robot/)" data.linz.govt.nz kxWebHosts:80 0.191 - - -
-###
 ###  We want to produce a metrics report with:
 ###
 ###       Time period (1 minute)
 ###       Number of requests
 ###       Count of 5xx status codes (errors, our fault)
-###       Count of 2/3xx status codes (success)
+###       Count of 200,300,400 status codes (success)
 ###       Maximum request time
 ###       Average request time
 ###
@@ -27,8 +25,7 @@
 ###  { '18/Nov/2013:06:26': { 
 ###        'num_requests': 23,
 ###        'status_5xx': 2,
-###        'status_4xx': 6,
-###        'status_success': 15,
+###        'status_success': 21,
 ###        'max_time': 3.234,
 ###    },
 ###    ...
@@ -63,6 +60,7 @@ import time
 import re
 import json
 
+from logster.parsers import stats_helper 
 from logster.logster_helper import MetricObject, LogsterParser
 from logster.logster_helper import LogsterParsingException
 
@@ -91,13 +89,9 @@ class KxLogster(LogsterParser):
         # fields from the line (in this case, http_status_code).
         self.reg = re.compile(r'(?P<host>\S+).*\[(?P<date>[^:]+):(?P<time>.+)\].*HTTP/1.\d\" (?P<http_status_code>\d{3}) (?P<size>\d+).*\"(?P<uagent>[^\"]*)" \S+ \S+ (?P<rtime>\S+) .*')
 
-###   5.10.83.100 - - [18/Nov/2013:06:26:28 +1300] "GET /layer/183-nz-mainland-river-polygons-topo-1250k/data/ HTTP/1.1" 200 3599 "-" "Mozilla/5.0 (compatible; AhrefsBot/5.0; +http://ahrefs.com/robot/)" data.linz.govt.nz kxWebHosts:80 0.191 - - -
-
     def parse_line(self, line):
         '''This function should digest the contents of one line at a time, updating
         object's state variables. Takes a single argument, the line to be parsed.'''
-
-#        import pdb;  pdb.set_trace()
 
         try:
             # Apply regular expression to each line and extract interesting bits.
@@ -126,16 +120,15 @@ class KxLogster(LogsterParser):
                     self.state[when]['status_success'] = 0
                 if not "max_time" in self.state[when]:
                     self.state[when]['max_time'] = 0
+                if not "time_list" in self.state[when]:
+                    self.state[when]['time_list'] = []
 
                 self.state[when]['num_requests'] += 1
                 if rtime > self.state[when]['max_time']:
                     self.state[when]['max_time'] = rtime
 
-                if 200 <= status <=299:
-                    self.state[when]['status_success'] += 1
-                if 300 <= status <=399:
-                    self.state[when]['status_success'] += 1
-                if 400 <= status <=499:
+                self.state[when]['time_list'].append(rtime)
+                if 200 <= status <= 499:
                     self.state[when]['status_success'] += 1
                 if 500 <= status <=599:
                     self.state[when]['status_5xx'] += 1
@@ -157,6 +150,10 @@ class KxLogster(LogsterParser):
             res.append( MetricObject(timestamp = when, name = "status_5xx", units=" requests", value=v['status_5xx']))
             res.append( MetricObject(timestamp = when, name = "num_requests", units=" requests", value=v['num_requests']))
             res.append( MetricObject(timestamp = when, name = "status_success", units=" requests", value=v['status_success']))
-            res.append( MetricObject(timestamp = when, name = "max_time", units=" requests", value=v['max_time']))
+            res.append( MetricObject(timestamp = when, name = "max_time", units=" sec", value=v['max_time']))
+            res.append( MetricObject(timestamp = when, name = "time_median", units=" sec", value=stats_helper.find_median(v['time_list'])))
+            res.append( MetricObject(timestamp = when, name = "time_mean", units=" sec", value=stats_helper.find_mean(v['time_list'])))
+            res.append( MetricObject(timestamp = when, name = "time_95%", units=" sec", value=stats_helper.find_percentile(v['time_list'], 95)))
+            res.append( MetricObject(timestamp = when, name = "time_90%", units=" sec", value=stats_helper.find_percentile(v['time_list'], 90)))
 
         return res
