@@ -149,7 +149,7 @@ class CloudWatch:
 
 
 class TempoDBException(Exception):
-    """ Raise thie exception if something goes wrong when working with TempoDB
+    """ Raise this exception if something goes wrong when working with TempoDB
     """
     pass
 

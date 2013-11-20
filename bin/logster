@@ -284,7 +284,9 @@ def submit_tempodb(metrics, options):
         return
 
     try:
-        for name in ["num_requests", "status_5xx", "time_95", "max_time", "status_success", "time_median", "time_mean", "time_90"]:
+        # we have to break them down by metric name and submit that way
+        names = set([metric.name for metric in metrics])
+        for name in names:
             tdb = TempoClient(api_key=options.tempodb_api_key, api_secret=options.tempodb_api_secret, name=name)
             for metric in metrics:
                 if metric.name == name:
