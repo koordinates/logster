@@ -1,3 +1,7 @@
+
+This is basically the Etsy fork, but with added support for TempoDB (www.tempo-db.com)
+
+
 # Logster - generate metrics from logfiles [![Build Status](https://secure.travis-ci.org/etsy/logster.png)](http://travis-ci.org/etsy/logster)
 
 Logster is a utility for reading log files and generating metrics in Graphite
